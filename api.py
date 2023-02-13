@@ -19,7 +19,33 @@ def get_full_account_name(acct : str, default_host : str) -> str:
         return acct
     else:
         return "@".join((acct, default_host))
-    
+
+# Copied from https://github.com/halcy/Mastodon.py/issues/309
+# Code by @BackSeat (Keith Edmunds)
+#@api_version("4.0.0", "4.0.0", _DICT_VERSION_ACCOUNT)
+def tag_following(mastodon_client: Mastodon , max_id=None, min_id=None, since_id=None, limit=None):
+    """
+    Fetch tags the given user is following.
+
+    Returns a list of tags dicts
+    """
+    if max_id is not None:
+        max_id = mastodon_client.__unpack_id(max_id, dateconv=True)
+
+    if min_id is not None:
+        min_id = mastodon_client.__unpack_id(min_id, dateconv=True)
+
+    if since_id is not None:
+        since_id = mastodon_client.__unpack_id(since_id, dateconv=True)
+
+    params = mastodon_client.__generate_params(locals(), ['id'])
+    url = '/api/v1/followed_tags'
+    return mastodon_client.__api_request('GET', url, params)
+
+def get_followed_hashtags( mastodon_client: Mastodon ) -> list[String]:
+     """Give a list of followed hashtags"""
+     return tag_following(mastodon_client)
+
 
 def fetch_posts_and_boosts(
     hours: int, mastodon_client: Mastodon, timeline: str

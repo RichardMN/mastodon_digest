@@ -94,6 +94,9 @@ def run(
         api_base_url=mastodon_base_url,
     )
 
+    tags = tag_following( mst )
+    print(tags)
+    
     # 1. Fetch all the posts and boosts from our home timeline that we haven't interacted with
     posts, boosts = fetch_posts_and_boosts(hours, mst, timeline)
 
