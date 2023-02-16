@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from math import sqrt
 from typing import TYPE_CHECKING
 
+import re
+
 from scipy import stats
 
 from api import get_full_account_name, get_followed_hashtags
@@ -148,13 +150,13 @@ class FilteredScorer(Weight, Scorer):
         # of a base scorer and require the use of a configured scorer.
         # Add new parameters here to trigger the use of the ConfiguredScorer
         # instead of instanciating a basic scorer directly (see run.py).
-        return {"filtered_accounts",}
+        return {"filtered_accounts","keywords"}
      
     @classmethod
     def check_params(cls, pars):
         admissible_base_scorers = set(get_scorers()).difference({"Filtered"})
         if pars["scorer"] not in admissible_base_scorers:
-            sys.exit("Configure filtered scorer '%s' must be one of %s"%admissible_base_scorers)
+            sys.exit(f"Configure filtered scorer {pars['scorer']} must be one of {admissible_base_scorers}")
 
     # Override class by instance method (I don't know how to solve this better.)
     def get_name(self):
@@ -164,22 +166,31 @@ class FilteredScorer(Weight, Scorer):
         s = self.base_scorer.score(scored_post) * self.weight(scored_post)
         return s
     
-    def is_hashtag_in_text(text, hashtags):
-        findwords = re.compile(r'(\w*)?')
-        for word in set(findwords.findall(text)):
-            if word in hashtags:
-                return True
-        return False
+    # def is_hashtag_in_text(text, hashtags: list):
+    #     #findwords = re.compile(r'(\w*)?')
+    #     # words_in_toot = set(re.findall(r"(\w+)",
+    #     # "<p>[sorry - test driving my bot on something new]<br>disarmament is an important topic.<br>[I'm trying out code so that <span class=\"h-card\"><a href=\"https://botsin.space/@icymi_adn\" class=\"u-url mention\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">@<span>icymi_adn</span></a></span> can listen to general-purpose accounts but only notice when they use keywords, even if they're not in hashtags.]</p>"))
+    #     words_in_toot = set(re.findall(r"(\w+)", text))
+    #     print(words_in_toot)
+    #     for word in words_in_toot:
+    #         if word in hashtags:
+    #             print(f"found {word}!")
+    #             return True
+    #     return False
 
     def weight(self, scored_post: ScoredPost) -> Weight:
         base_weight = self.base_scorer.weight(scored_post)
         acct = scored_post.info.get("account", {}).get("acct", "")
         acct = get_full_account_name(acct, self.default_host)
         if acct in self.filtered_accounts:
-            if is_hashtag_in_text( scored_post.info.get("content")):
-                return base_weight
-            else:
-                return 0
+            toot_text = scored_post.info.get("content")
+            print(f"testing {toot_text} for matches with {self.keywords}")
+            words_in_toot = set(re.findall(r"(\w+)", toot_text))
+            for word in words_in_toot:
+                if word in self.keywords:
+                    print(f"found {word}!")
+                    return base_weight + 1.0
+            return 0
         else:
         #w = base_weight * self.filtered_accounts.get(acct, 1.0)
             return base_weight
@@ -189,9 +200,12 @@ class FilteredScorer(Weight, Scorer):
         self.default_host = pars["default_host"]
         self.base_scorer = get_scorers()[pars["scorer"]]
         self.filtered_accounts = pars.get("filtered_accounts", {})
-        self.keywords = get_followed_hashtags()
+        print (self.filtered_accounts)
+        #self.keywords = get_followed_hashtags()
+        self.keywords = pars.get("keywords", {})
+        print( self.keywords )
 
 def get_scorers():
     all_classes = inspect.getmembers(importlib.import_module(__name__), inspect.isclass)
     scorers = [c for c in all_classes if c[1] != Scorer and issubclass(c[1], Scorer)]
-    return {scorer[1].get_name(): scorer[1] for scorer in scorers if scorer[1] is not ConfiguredScorer}
+    return {scorer[1].get_name(): scorer[1] for scorer in scorers if scorer[1] not in [ConfiguredScorer, FilteredScorer]}

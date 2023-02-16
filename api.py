@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from models import ScoredPost
 
 if TYPE_CHECKING:
-    from mastodon import Mastodon
+    from tag_following import Mastodon
 
 
 def get_full_account_name(acct : str, default_host : str) -> str:
@@ -20,32 +20,14 @@ def get_full_account_name(acct : str, default_host : str) -> str:
     else:
         return "@".join((acct, default_host))
 
-# Copied from https://github.com/halcy/Mastodon.py/issues/309
-# Code by @BackSeat (Keith Edmunds)
-#@api_version("4.0.0", "4.0.0", _DICT_VERSION_ACCOUNT)
-def tag_following(mastodon_client: Mastodon , max_id=None, min_id=None, since_id=None, limit=None):
-    """
-    Fetch tags the given user is following.
-
-    Returns a list of tags dicts
-    """
-    if max_id is not None:
-        max_id = mastodon_client.__unpack_id(max_id, dateconv=True)
-
-    if min_id is not None:
-        min_id = mastodon_client.__unpack_id(min_id, dateconv=True)
-
-    if since_id is not None:
-        since_id = mastodon_client.__unpack_id(since_id, dateconv=True)
-
-    params = mastodon_client.__generate_params(locals(), ['id'])
-    url = '/api/v1/followed_tags'
-    return mastodon_client.__api_request('GET', url, params)
-
 def get_followed_hashtags( mastodon_client: Mastodon ) -> list[String]:
-     """Give a list of followed hashtags"""
-     return tag_following(mastodon_client)
-
+    """Give a list of followed hashtags, as a list of strings"""
+    tags_dict = mastodon_client.tag_following()
+    #print(tags_dict[1]["name"])
+    tags = []
+    for item in tags_dict:
+        tags.append(item["name"])
+    return tags
 
 def fetch_posts_and_boosts(
     hours: int, mastodon_client: Mastodon, timeline: str
@@ -141,5 +123,6 @@ def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
         print (f"url: {scored_post.url}")
         status = mastodon_client.status(scored_post.info['id'])
         #print (status.content)
-        print (f"Calling mastodon_client.reblog({scored_post.info['id']}, visibility='unlisted')")
-        mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
+        print (f"WOULD BE Calling mastodon_client.reblog({scored_post.info['id']}, visibility='unlisted')")
+        # Commented out while working on the filter code
+        #mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')

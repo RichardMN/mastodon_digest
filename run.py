@@ -11,10 +11,10 @@ from urllib3.util.url import parse_url
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader
-from mastodon import Mastodon
+from tag_following import Mastodon
 
-from api import fetch_posts_and_boosts, reboost_toots
-from scorers import get_scorers, ConfiguredScorer
+from api import fetch_posts_and_boosts, reboost_toots, get_followed_hashtags
+from scorers import get_scorers, ConfiguredScorer, FilteredScorer
 from thresholds import get_threshold_from_name, get_thresholds
 
 if TYPE_CHECKING:
@@ -94,8 +94,9 @@ def run(
         api_base_url=mastodon_base_url,
     )
 
-    tags = tag_following( mst )
-    print(tags)
+    # tags = get_followed_hashtags( mst )
+
+    # print(tags) 
     
     # 1. Fetch all the posts and boosts from our home timeline that we haven't interacted with
     posts, boosts = fetch_posts_and_boosts(hours, mst, timeline)
@@ -248,6 +249,12 @@ if __name__ == "__main__":
         # At least one parameter was passed, which requires 
         # the use of a ConfiguredScorer to modify scores of the base scorer
         scorer = ConfiguredScorer(base_scorer=args.scorer, 
+                                  default_host=parse_url(mastodon_base_url).hostname, 
+                                  **vars(args))
+    elif set(vars(args)).intersection(FilteredScorer.get_additional_scorer_pars()):
+        # At least one parameter was passed, which requires 
+        # the use of a ConfiguredScorer to modify scores of the base scorer
+        scorer = FilteredScorer(base_scorer=args.scorer, 
                                   default_host=parse_url(mastodon_base_url).hostname, 
                                   **vars(args))
     else:
