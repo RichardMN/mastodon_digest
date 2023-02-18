@@ -6,6 +6,7 @@ import sys
 from abc import ABC, abstractmethod
 from math import sqrt
 from typing import TYPE_CHECKING
+from bs4 import BeautifulSoup
 
 import re
 
@@ -183,12 +184,14 @@ class FilteredScorer(Weight, Scorer):
         acct = scored_post.info.get("account", {}).get("acct", "")
         acct = get_full_account_name(acct, self.default_host)
         if acct in self.filtered_accounts:
-            toot_text = scored_post.info.get("content")
+            toot_html = scored_post.info.get("content")
+            toot_bs = BeautifulSoup(toot_html)
+            toot_text = toot_bs.get_text()
             print(f"testing {toot_text} for matches with {self.keywords}")
             words_in_toot = set(re.findall(r"(\w+)", toot_text))
             for word in words_in_toot:
                 if word in self.keywords:
-                    print(f"found {word}!")
+                    print(f"###FOUND {word}!")
                     return base_weight + 1.0
             return 0
         else:

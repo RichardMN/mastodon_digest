@@ -22,9 +22,12 @@ class Threshold(Enum):
         self, posts: list[ScoredPost], scorer: Scorer
     ) -> list[ScoredPost]:
         """Returns a list of ScoredPosts that meet this Threshold with the given Scorer"""
-
+        delta = 0.001
         all_post_scores = [p.get_score(scorer) for p in posts]
-        min_score = stats.scoreatpercentile(all_post_scores, per=self.value)
+        print(f"all_post_scores {all_post_scores}")
+        min_score = max(stats.scoreatpercentile(all_post_scores, per=self.value),
+            delta)
+        print(f"min_score is {min_score}")
         threshold_posts = [
             post for post, score in zip(posts, all_post_scores) if score >= min_score
         ]

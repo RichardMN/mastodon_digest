@@ -123,5 +123,14 @@ def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
         print (f"url: {scored_post.url}")
         status = mastodon_client.status(scored_post.info['id'])
         #print (status.content)
-        print (f"Calling mastodon_client.reblog({scored_post.info['id']}, visibility='unlisted')")
+        if scored_post.info['visibility'] in ['public', 'unlisted']:
+            print (f"Calling mastodon_client.status_reblog({scored_post.info['id']}, visibility='unlisted')")
+            mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
+        else:
+            print (f"Not reblogging {scored_post.info['id']} - original visiblity is {scored_post.info['visibility']}")
+    for scored_post in context['boosts']:
+        print (f"url: {scored_post.url}")
+        status = mastodon_client.status(scored_post.info['id'])
+        #print (status.content)
+        print (f"Calling mastodon_client.status_reblog({scored_post.info['id']}, visibility='unlisted')")
         mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
