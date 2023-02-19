@@ -164,7 +164,16 @@ class FilteredScorer(Weight, Scorer):
         return "Filtered%s"%(self.base_scorer.get_name())
 
     def score(self, scored_post: ScoredPost) -> FilteredScorer:
-        s = self.base_scorer.score(scored_post) * self.weight(scored_post)
+        filtered_account_boost = 2.0
+        w = self.weight(scored_post)
+        if (w < 0):
+            s = -1.0
+        else:
+            acct = scored_post.info.get("account", {}).get("acct", "")
+            acct = get_full_account_name(acct, self.default_host)
+            s = self.base_scorer.score(scored_post) * w
+            if acct in self.filtered_accounts:
+                s = s + filtered_account_boost
         return s
     
     # def is_hashtag_in_text(text, hashtags: list):
@@ -185,15 +194,15 @@ class FilteredScorer(Weight, Scorer):
         acct = get_full_account_name(acct, self.default_host)
         if acct in self.filtered_accounts:
             toot_html = scored_post.info.get("content")
-            toot_bs = BeautifulSoup(toot_html)
-            toot_text = toot_bs.get_text()
-            print(f"testing {toot_text} for matches with {self.keywords}")
+            toot_bs = BeautifulSoup(toot_html, "html.parser")
+            toot_text = toot_bs.get_text().lower()
+            print(f"testing {toot_text} for matches")
             words_in_toot = set(re.findall(r"(\w+)", toot_text))
             for word in words_in_toot:
                 if word in self.keywords:
                     print(f"###FOUND {word}!")
                     return base_weight + 1.0
-            return 0
+            return -1.0
         else:
         #w = base_weight * self.filtered_accounts.get(acct, 1.0)
             return base_weight
@@ -205,7 +214,8 @@ class FilteredScorer(Weight, Scorer):
         self.filtered_accounts = pars.get("filtered_accounts", {})
         print (self.filtered_accounts)
         #self.keywords = get_followed_hashtags()
-        self.keywords = pars.get("keywords", {})
+        keywords = pars.get("keywords", {})
+        self.keywords = [ word.lower() for word in keywords]
         print( self.keywords )
 
 def get_scorers():
