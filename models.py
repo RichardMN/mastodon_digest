@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+import re
 
 if TYPE_CHECKING:
     from scorers import Scorer
@@ -19,4 +20,11 @@ class ScoredPost:
 
     def get_score(self, scorer: Scorer) -> float:
         return scorer.score(self)
+    
+    def is_filtered(self, scorer: Scorer) -> bool:
+        match = re.search(r"^Filtered", scorer.get_name())
+        if match:
+            return scorer.is_filtered(self)
+        else:
+            return False
 

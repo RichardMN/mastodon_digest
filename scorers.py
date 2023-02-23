@@ -164,7 +164,7 @@ class FilteredScorer(Weight, Scorer):
         return "Filtered%s"%(self.base_scorer.get_name())
 
     def score(self, scored_post: ScoredPost) -> FilteredScorer:
-        filtered_account_boost = 2.0
+        filtered_account_boost = 0.1
         w = self.weight(scored_post)
         if (w < 0):
             s = -1.0
@@ -176,6 +176,14 @@ class FilteredScorer(Weight, Scorer):
                 s = s + filtered_account_boost
         return s
     
+    def is_filtered(self, scored_post: ScoredPost) -> bool:
+        acct = scored_post.info.get("account", {}).get("acct", "")
+        acct = get_full_account_name(acct, self.default_host)
+        if acct in self.filtered_accounts:
+            return True
+        else:
+            return False
+
     # def is_hashtag_in_text(text, hashtags: list):
     #     #findwords = re.compile(r'(\w*)?')
     #     # words_in_toot = set(re.findall(r"(\w+)",
