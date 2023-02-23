@@ -22,8 +22,13 @@ class Threshold(Enum):
         self, posts: list[ScoredPost], scorer: Scorer
     ) -> list[ScoredPost]:
         """Returns a list of ScoredPosts that meet this Threshold with the given Scorer"""
-        delta = 0.000
-        eligible_posts = [ post for post in posts if post.get_score(scorer)>=0 ]
+        # If we are using a FilteredScorer, split the list between the filtered
+        # accounts and the unfiltered accounts, and treat them separately
+        match = re.search(r"^Filtered", scorer.get_name())
+        if match:
+        
+        else:
+            eligible_posts = [ post for post in posts if post.get_score(scorer)>=0 ]
         all_post_scores = [p.get_score(scorer) for p in eligible_posts]
         print(f"all_post_scores {all_post_scores}")
         min_score = max(stats.scoreatpercentile(all_post_scores, per=self.value),
