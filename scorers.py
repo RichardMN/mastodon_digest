@@ -164,7 +164,7 @@ class FilteredScorer(Weight, Scorer):
         return "Filtered%s"%(self.base_scorer.get_name())
 
     def score(self, scored_post: ScoredPost) -> FilteredScorer:
-        filtered_account_boost = 0.1
+        filtered_account_boost = -0.05
         w = self.weight(scored_post)
         if (w < 0):
             s = -1.0
