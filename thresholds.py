@@ -34,10 +34,16 @@ class Threshold(Enum):
             filtered_posts = [ post for post
                 in posts if (not post.is_filtered(scorer))]
             eligible_unfiltered_posts = [ post for post in unfiltered_posts if post.get_score(scorer)>=0 ]
+            if (len(eligible_unfiltered_posts)>0):
+                unfiltered_scores = [p.get_score(scorer) for p in eligible_unfiltered_posts]
+                max_unfiltered_score = max(unfiltered_scores)
+                scorer.filtered_account_boost = max_unfiltered_score
+            else:
+                scorer.filtered_account_boost = 0.05
             eligible_filtered_posts = [ post for post in filtered_posts if post.get_score(scorer) > 0 ]
             #all_unfiltered_scores =  [p.get_score(scorer) for p in eligible_unfiltered_posts]
             #max_unfiltered_score = max(all_unfiltered_scores)
-            eligible_posts = eligible_unfiltered_posts
+            eligible_posts = eligible_unfiltered_posts + eligible_filtered_posts
         else:
             eligible_posts = [ post for post in posts if post.get_score(scorer)>=0 ]
         all_post_scores = [p.get_score(scorer) for p in eligible_posts]

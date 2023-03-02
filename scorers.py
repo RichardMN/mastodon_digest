@@ -164,7 +164,6 @@ class FilteredScorer(Weight, Scorer):
         return "Filtered%s"%(self.base_scorer.get_name())
 
     def score(self, scored_post: ScoredPost) -> FilteredScorer:
-        filtered_account_boost = -0.05
         w = self.weight(scored_post)
         if (w < 0):
             s = -1.0
@@ -173,7 +172,7 @@ class FilteredScorer(Weight, Scorer):
             acct = get_full_account_name(acct, self.default_host)
             s = self.base_scorer.score(scored_post) * w
             if acct in self.filtered_accounts:
-                s = s + filtered_account_boost
+                s = s + self.filtered_account_boost
         return s
     
     def is_filtered(self, scored_post: ScoredPost) -> bool:
@@ -220,6 +219,7 @@ class FilteredScorer(Weight, Scorer):
         self.default_host = pars["default_host"]
         self.base_scorer = get_scorers()[pars["scorer"]]
         self.filtered_accounts = pars.get("filtered_accounts", {})
+        self.filtered_account_boost = -0.05
         print (self.filtered_accounts)
         #self.keywords = get_followed_hashtags()
         keywords = pars.get("keywords", {})

@@ -20,7 +20,7 @@ def get_full_account_name(acct : str, default_host : str) -> str:
     else:
         return "@".join((acct, default_host))
 
-def get_followed_hashtags( mastodon_client: Mastodon ) -> list[String]:
+def get_followed_hashtags( mastodon_client: Mastodon ) -> list[str]:
     """Give a list of followed hashtags, as a list of strings"""
     tags_dict = mastodon_client.tag_following()
     #print(tags_dict[1]["name"])
@@ -122,12 +122,12 @@ def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
     # Does boosts, then posts, and reverses the order from the digest HTML
     # output so that higher score items end up at the top of each burst
     # of amplifications
-    # for scored_post in reversed(context['boosts']):
-    #     print (f"url: {scored_post.url}")
-    #     status = mastodon_client.status(scored_post.info['id'])
-    #     #print (status.content)
-    #     print (f"Calling mastodon_client.status_reblog({scored_post.info['id']}, visibility='unlisted')")
-    #     mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
+    for scored_post in reversed(context['boosts']):
+        print (f"url: {scored_post.url}")
+        status = mastodon_client.status(scored_post.info['id'])
+        #print (status.content)
+        print (f"Calling mastodon_client.status_reblog({scored_post.info['id']}, visibility='unlisted')")
+        mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
     for scored_post in reversed(context['posts']):
         print (f"url: {scored_post.url}")
         status = mastodon_client.status(scored_post.info['id'])
