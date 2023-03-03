@@ -94,9 +94,25 @@ def run(
         api_base_url=mastodon_base_url,
     )
 
+
+    # Algorithm description from https://icymilaw.org/about/ ; used as a basis
+    # It reads its timeline for the past 24 hours.
     # 1. Fetch all the posts and boosts from our home timeline that we haven't interacted with
     posts, boosts = fetch_posts_and_boosts(hours, mst, timeline)
 
+    # It reads in a list of all the posts (including boosts) it has made.
+
+
+# It looks at how many reblogs and favorites each of the remaining posts have gotten and calculates a score based on their geometric mean. Note: This is only a subset of the true counts as it primarily knows what its home server (esq.social) knows. Consequently, esq.social's interactions with a post hold a special sway. This is why I decided to base a legal content aggregator on a legal-focused server. If we assume its users will more frequently interact with the target content, it ups the chances that the counts will be current. Additionally, the bot also knows the counts as they appear on mastodon.social for folks followed by @colarusso since it shares an infrastructure with @colarusso_alo. So, four communities strongly influence what the bot sees: (1) the folks it follows; (2) the folks who interact with their posts; (3) the members of esq.social who can give more insight into the actions of 2; and (4) the folks followed by Colarusso mediated by colarusso_algo who can give more insight into the actions of 2.
+# It divides the score above by a number that increases with the author's follower count. That is, as the author's follower count goes up, their score goes down. As of this writing, this denominator is a sigmoid with values between 0.5 and 1, maxing out at a few thousand followers. However, I'm always fiddling with this.
+# It sorts the timeline by this new score, from highest to lowest.
+# It finds all the posts in the timeline that look like they came from Twitter (i.e., they include a link to twitter.com). If one of the last n boosts it has made looked like it was from Twitter, it removes all of the suspected Twitter posts from the timeline. Otherwise, it gets rid of all of the Twitter posts but the one with the highest score. As of this writing n was around 20, but I'm always playing with this value.
+# It removes from the timeline posts from any author it has boosted in the last n boosts, where n again is a number subject to change but on the order of 10s.
+# It makes sure it hasn't posted more than 200 times already. If it has, it stops. You may be wondering why this or some of the following tests don't come earlier, and the answer has to do with the fact that while examining and constructing the timeline the bot is collecting info it will use elsewhere regardless of whether or not it reblogs anything.
+# It makes sure it's between 6 AM and and 11:30 PM US/Eastern, if it isn't it stops.
+# It looks to see how many posts were made in the original timeline over the last 24 hours and the last 20 minutes. It uses these two numbers to estimate the frequency of posts it would need to make to hit a target of roughly 150 posts a day. The assumptions are such that the estimate tends to underestimate.
+# It removes form the timeline all posts with a score below some multiple of the median score for available posts. Note: this can result in there not being enough posts to hit the target. Also, the multiple is always being fiddled with. See next.
+# Based on this frequency it calculated above, it figures out how many boosts it should make over the next 30 min. It chooses that number of posts from the top of the timeline, if available, and tries to boost them out over the next 30 minutes. If there's an error it tries to boost a post from lower in the timeline.
     # 2. Score them, and return those that meet our threshold
     threshold_posts = threshold.posts_meeting_criteria(posts, scorer)
     threshold_boosts = threshold.posts_meeting_criteria(boosts, scorer)

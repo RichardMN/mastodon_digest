@@ -64,6 +64,13 @@ def fetch_posts_and_boosts(
 
     mastodon_acct = mastodon_client.me()['acct'].strip().lower()
 
+    # Based on icymilaw.org/about
+    # It removes all posts from the timeline:
+    # [x] authored by anyone with the #nobot or #noindex tag in their bio;
+    # [x] originally posted more than 24 hours ago (i.e., boosts of content authored more than 24 hours ago);
+    # [ ] made by folks it doesn't follow (i.e., boosts made by folks it follows of folks it doesn't); OR
+    # [x] it has already boosted;
+
     # Iterate over our timeline until we run out of posts or we hit the limit
     while response and total_posts_seen < TIMELINE_LIMIT:
 
@@ -94,6 +101,7 @@ def fetch_posts_and_boosts(
                     and scored_post.info["account"]["acct"].strip().lower() != mastodon_acct
                     and "#noindex" not in scored_post.info["account"]["note"].lower()
                     and "#nobot" not in scored_post.info["account"]["note"].lower()
+                    and (datetime.now(timezone.utc) - scored_post.info["created_at"]) < timedelta(hours = hours)
                 ):
                     # Append to either the boosts list or the posts lists
                     if boost:
