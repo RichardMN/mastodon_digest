@@ -101,7 +101,7 @@ def run(
     posts, boosts = fetch_posts_and_boosts(hours, mst, timeline)
 
     # It reads in a list of all the posts (including boosts) it has made.
-
+    
 
 # It looks at how many reblogs and favorites each of the remaining posts have gotten and calculates a score based on their geometric mean. Note: This is only a subset of the true counts as it primarily knows what its home server (esq.social) knows. Consequently, esq.social's interactions with a post hold a special sway. This is why I decided to base a legal content aggregator on a legal-focused server. If we assume its users will more frequently interact with the target content, it ups the chances that the counts will be current. Additionally, the bot also knows the counts as they appear on mastodon.social for folks followed by @colarusso since it shares an infrastructure with @colarusso_alo. So, four communities strongly influence what the bot sees: (1) the folks it follows; (2) the folks who interact with their posts; (3) the members of esq.social who can give more insight into the actions of 2; and (4) the folks followed by Colarusso mediated by colarusso_algo who can give more insight into the actions of 2.
 # It divides the score above by a number that increases with the author's follower count. That is, as the author's follower count goes up, their score goes down. As of this writing, this denominator is a sigmoid with values between 0.5 and 1, maxing out at a few thousand followers. However, I'm always fiddling with this.
