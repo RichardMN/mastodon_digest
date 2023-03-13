@@ -116,6 +116,52 @@ def fetch_posts_and_boosts(
 
     return posts, boosts, total_posts_seen
 
+
+def fetch_myposts(
+    hours: int, mastodon_client: Mastodon, timeline_limit: int = 1000
+) -> tuple[list[ScoredPost], list[ScoredPost], int]:
+    """Fetches posts from the home timeline that the account hasn't interacted with"""
+
+    #TIMELINE_LIMIT = 1000  # Should this be documented? Configurable?
+
+    # First, get our filters
+    filters = mastodon_client.filters()
+
+    # Set our start query
+    start = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    posts = []
+    boosts = []
+    seen_post_urls = set()
+    total_posts_seen = 0
+
+    mastodon_acct = mastodon_client.me()['acct'].strip().lower()
+    response = mastodon_client.account_statuses(mastodon_client.me()['id'], min_id=start)
+
+    while response and total_posts_seen <= timeline_limit:
+        for post in response:
+            total_posts_seen += 1
+
+            boost = False
+            if post["reblog"] is not None:
+                post = post["reblog"]  # look at the boosted post
+                boost = True
+
+            scored_post = ScoredPost(post)  # wrap the post data as a ScoredPost
+            if (datetime.now(timezone.utc) - scored_post.info["created_at"]) < timedelta(hours = hours):
+                # Append to either the boosts list or the posts lists
+                if boost:
+                    boosts.append(scored_post)
+                else:
+                    posts.append(scored_post)
+                seen_post_urls.add(scored_post.url)
+        response = mastodon_client.fetch_previous(
+            response
+        )  # fetch the previous (because of reverse chron) page of results
+
+    return posts, boosts, total_posts_seen
+
+
 def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
     """Boosts toots provided in the context"""
     # This could eventually also issue a summary toot
