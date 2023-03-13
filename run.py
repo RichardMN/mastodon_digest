@@ -87,9 +87,11 @@ def run(
     theme: str,
 ) -> None:
 
-    print(f"Building digest from the past {hours} hours...")
+    timeline_limit = 400
+    print(f"Building digest from the past {hours} hours, maximum {timeline_limit} requests...")
 
     mst = Mastodon(
+        user_agent="mastodon_digest_refactor",
         access_token=mastodon_token,
         api_base_url=mastodon_base_url,
     )
@@ -98,8 +100,9 @@ def run(
     # Algorithm description from https://icymilaw.org/about/ ; used as a basis
     # It reads its timeline for the past 24 hours.
     # 1. Fetch all the posts and boosts from our home timeline that we haven't interacted with
-    posts, boosts = fetch_posts_and_boosts(hours, mst, timeline)
+    posts, boosts, posts_seen = fetch_posts_and_boosts(hours, mst, timeline, timeline_limit )
 
+    print(f"Seen {posts_seen} posts, returned {len(posts)} posts and {len(boosts)} boosts.")
     # It reads in a list of all the posts (including boosts) it has made.
     
 

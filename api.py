@@ -22,11 +22,11 @@ def get_full_account_name(acct : str, default_host : str) -> str:
     
 
 def fetch_posts_and_boosts(
-    hours: int, mastodon_client: Mastodon, timeline: str
-) -> tuple[list[ScoredPost], list[ScoredPost]]:
+    hours: int, mastodon_client: Mastodon, timeline: str, timeline_limit: int = 1000
+) -> tuple[list[ScoredPost], list[ScoredPost], int]:
     """Fetches posts from the home timeline that the account hasn't interacted with"""
 
-    TIMELINE_LIMIT = 1000  # Should this be documented? Configurable?
+    #TIMELINE_LIMIT = 1000  # Should this be documented? Configurable?
 
     # First, get our filters
     filters = mastodon_client.filters()
@@ -72,7 +72,7 @@ def fetch_posts_and_boosts(
     # [x] it has already boosted;
 
     # Iterate over our timeline until we run out of posts or we hit the limit
-    while response and total_posts_seen < TIMELINE_LIMIT:
+    while response and total_posts_seen <= timeline_limit:
 
         # Apply our server-side filters
         if filters:
@@ -114,7 +114,7 @@ def fetch_posts_and_boosts(
             response
         )  # fetch the previous (because of reverse chron) page of results
 
-    return posts, boosts
+    return posts, boosts, total_posts_seen
 
 def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
     """Boosts toots provided in the context"""
