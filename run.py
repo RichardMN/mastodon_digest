@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader
 from mastodon import Mastodon
+from datetime import datetime, timedelta, timezone
 
 from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts
 from scorers import get_scorers, ConfiguredScorer
@@ -87,8 +88,16 @@ def run(
     theme: str,
 ) -> None:
 
-    timeline_limit = 400
+    timeline_limit = 200
     myposts_limit = 1000
+    # how far back to look for authors who we may repeat boost
+    author_look_back_len = 10    
+    # how far back to look for twitter-originated toots, which would
+    # mean we don't boost another twitter-originated toot
+    twitter_look_back_len = 20
+    target_boosts_per_day = 15
+
+    minutes_look_back = 20 #minutes to look back for pace
 
     print(f"Building digest from the past {hours} hours, maximum {timeline_limit} requests...")
 
@@ -104,11 +113,20 @@ def run(
     posts, boosts, posts_seen = fetch_posts_and_boosts(hours, mst, timeline, timeline_limit )
 
     print(f"Seen {posts_seen} posts, returned {len(posts)} posts and {len(boosts)} boosts.")
-    # It reads in a list of all the posts (including boosts) it has made.
     
+    most_recent_boosts = [post for post in posts
+                          if (datetime.now(timezone.utc) - post.info["created_at"]) 
+                            < timedelta(minutes = minutes_look_back)]
+    
+    # It reads in a list of all the posts (including boosts) it has made.
     # go back two months, for now
     myposts, myboosts, myposts_seen = fetch_myposts(24*60, mst, myposts_limit )
     print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
+
+    boosted_authors = [post.info['account']['acct'] for post in myboosts[-author_look_back_len:] ]
+
+    twitter_boosts = [post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() > 0.0]
+    non_twitter_boosts = [ post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() == 0.0]
 
 # It looks at how many reblogs and favorites each of the remaining posts have gotten and calculates a score based on their geometric mean. Note: This is only a subset of the true counts as it primarily knows what its home server (esq.social) knows. Consequently, esq.social's interactions with a post hold a special sway. This is why I decided to base a legal content aggregator on a legal-focused server. If we assume its users will more frequently interact with the target content, it ups the chances that the counts will be current. Additionally, the bot also knows the counts as they appear on mastodon.social for folks followed by @colarusso since it shares an infrastructure with @colarusso_alo. So, four communities strongly influence what the bot sees: (1) the folks it follows; (2) the folks who interact with their posts; (3) the members of esq.social who can give more insight into the actions of 2; and (4) the folks followed by Colarusso mediated by colarusso_algo who can give more insight into the actions of 2.
 # It divides the score above by a number that increases with the author's follower count. That is, as the author's follower count goes up, their score goes down. As of this writing, this denominator is a sigmoid with values between 0.5 and 1, maxing out at a few thousand followers. However, I'm always fiddling with this.
