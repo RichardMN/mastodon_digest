@@ -104,6 +104,37 @@ class ExtendedSimpleWeightedScorer(InverseFollowerWeight, ExtendedSimpleScorer):
     def score(cls, scored_post: ScoredPost) -> ExtendedSimpleWeightedScorer:
         return super().score(scored_post) * super().weight(scored_post)
 
+class KeywordScorer(Weight, Scorer):
+    @staticmethod
+    def get_additional_scorer_pars() -> set:
+        return {"keywords",}
+
+    @classmethod
+    def check_params(cls, pars):
+        admissible_base_scorers = set(get_scorers()).difference({"Keyword"})
+        if pars["scorer"][7:] not in admissible_base_scorers:
+            sys.exit("Keyword scorer '%s' must be one of %s"%admissible_base_scorers)
+
+    # Override class by instance method (I don't know how to solve this better.)
+    def get_name(self):
+        return "Keyword%s"%(self.base_scorer.get_name())
+
+    def score(self, scored_post: ScoredPost) -> KeywordScorer:
+        s = (self.base_scorer.score(scored_post) + self.keyword_score(scored_post)) * self.weight(scored_post)
+        return s
+    
+    def keyword_score(self, scored_post: ScoredPost) -> float:
+        return float(scored_post.count_keywords(self.keywords))*0.1
+    
+    def weight(self, scored_post: ScoredPost) -> Weight:
+        return self.base_scorer.weight(scored_post)
+    
+    def __init__(self, **pars)->None:
+        KeywordScorer.check_params(pars)
+        #self.default_host = pars["default_host"]
+        self.base_scorer = get_scorers()[pars["scorer"][7:]]
+        self.keywords = set([ word.lower() for word in pars.get("keywords", {})])
+
 
 class ConfiguredScorer(Weight, Scorer):
     @staticmethod
@@ -145,4 +176,4 @@ class ConfiguredScorer(Weight, Scorer):
 def get_scorers():
     all_classes = inspect.getmembers(importlib.import_module(__name__), inspect.isclass)
     scorers = [c for c in all_classes if c[1] != Scorer and issubclass(c[1], Scorer)]
-    return {scorer[1].get_name(): scorer[1] for scorer in scorers if scorer[1] is not ConfiguredScorer}
+    return {scorer[1].get_name(): scorer[1] for scorer in scorers if scorer[1] not in [ConfiguredScorer, KeywordScorer]}

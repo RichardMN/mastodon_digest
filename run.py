@@ -13,9 +13,11 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader
 from mastodon import Mastodon
 from datetime import datetime, timedelta, timezone
+from scipy import stats
+from statistics import median_high, median_low
 
 from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts
-from scorers import get_scorers, ConfiguredScorer
+from scorers import get_scorers, ConfiguredScorer, KeywordScorer
 from thresholds import get_threshold_from_name, get_thresholds
 
 if TYPE_CHECKING:
@@ -106,7 +108,10 @@ def run(
         access_token=mastodon_token,
         api_base_url=mastodon_base_url,
     )
+    filtered_accounts = set(['EEAS@social.network.europa.eu','EU_UNGeneva@respublicae.eu', 'rmartinnielsen@mastodon.social'])
 
+    keywords_mixedcase = ['TPNW', 'nuclear', 'missiles', 'missile', 'nonprolifwp', 'armscontrol', 'nonproliferation', 'autonomousweapons', 'killerrobots', 'SALW', 'ConferenceOnDisarmament', 'chemicalweapons', 'chemicalweapon', 'nuclearweapons', 'disarmament', 'opcw', 'landmines', 'biowarfare', 'biologicalweapons', 'ICBM', 'ICBMs']
+    keywords = set([keyword.lower() for keyword in keywords_mixedcase ])
     # Algorithm description from https://icymilaw.org/about/ ; used as a basis
     # It reads its timeline for the past 24 hours.
     # 1. Fetch all the posts and boosts from our home timeline that we haven't interacted with
@@ -114,16 +119,23 @@ def run(
 
     print(f"Seen {posts_seen} posts, returned {len(posts)} posts and {len(boosts)} boosts.")
     
-    most_recent_boosts = [post for post in posts
+    # Let's filter the posts and boosts here
+    #
+    filtered_posts = [post for post in posts
+                      if (post.info['account']['acct'] not in filtered_accounts) or post.matches_keywords(keywords)]
+    filtered_boosts = [post for post in boosts
+                      if (post.info['account']['acct'] not in filtered_accounts) or post.matches_keywords(keywords)]
+    
+    most_recent_boosts = [post for post in filtered_posts
                           if (datetime.now(timezone.utc) - post.info["created_at"]) 
                             < timedelta(minutes = minutes_look_back)]
     
     # It reads in a list of all the posts (including boosts) it has made.
-    # go back two months, for now
-    myposts, myboosts, myposts_seen = fetch_myposts(24*60, mst, myposts_limit )
+    # go back 5 days
+    myposts, myboosts, myposts_seen = fetch_myposts(24*5, mst, myposts_limit )
     print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
 
-    boosted_authors = [post.info['account']['acct'] for post in myboosts[-author_look_back_len:] ]
+    boosted_authors = set([post.info['account']['acct'] for post in myboosts[-author_look_back_len:] ])
 
     twitter_boosts = [post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() > 0.0]
     non_twitter_boosts = [ post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() == 0.0]
@@ -139,15 +151,57 @@ def run(
 # It removes form the timeline all posts with a score below some multiple of the median score for available posts. Note: this can result in there not being enough posts to hit the target. Also, the multiple is always being fiddled with. See next.
 # Based on this frequency it calculated above, it figures out how many boosts it should make over the next 30 min. It chooses that number of posts from the top of the timeline, if available, and tries to boost them out over the next 30 minutes. If there's an error it tries to boost a post from lower in the timeline.
     # 2. Score them, and return those that meet our threshold
-    threshold_posts = threshold.posts_meeting_criteria(posts, scorer)
-    threshold_boosts = threshold.posts_meeting_criteria(boosts, scorer)
+    # threshold_posts = threshold.posts_meeting_criteria(posts, scorer)
+    # threshold_boosts = threshold.posts_meeting_criteria(boosts, scorer)
 
     # 3. Sort posts and boosts by score, descending
+    sorted_posts = sorted(
+        filtered_posts, key = lambda post: post.get_score(scorer), reverse=True
+    )
+    sorted_boosts = sorted(
+        filtered_boosts, key = lambda post: post.get_score(scorer), reverse=True
+    )
+    
+    print("---posts----")
+    for post in sorted_posts:
+        print(post.get_score(scorer), post.content_text())
+    if len(sorted_posts):
+        print(median_high([post.get_score(scorer) for post in sorted_posts]))
+    else:
+        print("No posts")
+    
+    sorted_posts_drop_zeroes = sorted(
+        [post for post in filtered_posts if post.get_score(scorer)>0.0],
+        key = lambda post: post.get_score(scorer), reverse=True
+    )
+    if len(sorted_posts_drop_zeroes):
+        post_median_score = median_low([post.get_score(scorer) for post in sorted_posts_drop_zeroes])
+        print(f"Above median (w/o zeroes): {len(sorted_posts_drop_zeroes)} Median w/o zeroes: {post_median_score}" )
+    else:
+        print("No posts")
+
+    print("---boosts----")
+    for boost in sorted_boosts:
+        print( boost.get_score(scorer), boost.content_text())
+    if len(sorted_boosts):
+        print(median_high([post.get_score(scorer) for post in sorted_boosts]))
+    else:
+        print("No boosts")
+
+    sorted_boosts_drop_zeroes = sorted(
+        [post for post in filtered_boosts if post.get_score(scorer)>0.0],
+        key = lambda post: post.get_score(scorer), reverse=True
+    )
+    if len(sorted_boosts_drop_zeroes):
+        print("median w/o zeroes", median_low([post.get_score(scorer) for post in sorted_boosts_drop_zeroes]))
+    else:
+        print("No boosts")
+    
     threshold_posts = sorted(
-        threshold_posts, key=lambda post: post.get_score(scorer), reverse=True
+         sorted_posts_drop_zeroes, key=lambda post: post.get_score(scorer), reverse=True
     )
     threshold_boosts = sorted(
-        threshold_boosts, key=lambda post: post.get_score(scorer), reverse=True
+        sorted_boosts_drop_zeroes, key=lambda post: post.get_score(scorer), reverse=True
     )
 
     # 4. Build the digest
@@ -288,6 +342,9 @@ if __name__ == "__main__":
         scorer = ConfiguredScorer(base_scorer=args.scorer, 
                                   default_host=parse_url(mastodon_base_url).hostname, 
                                   **vars(args))
+    elif (args.scorer.startswith("Keyword")):
+        scorer = KeywordScorer(base_scorer=args.scorer[7:],
+                               **vars(args))
     else:
         scorer = scorers[args.scorer]()
         
