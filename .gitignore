@@ -47,3 +47,5 @@ render/*.html
 .venv
 
 cfg.yaml
+
+*.csv

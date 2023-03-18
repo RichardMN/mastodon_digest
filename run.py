@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib3.util.url import parse_url
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 from jinja2 import Environment, FileSystemLoader
 from mastodon import Mastodon
 from datetime import datetime, timedelta, timezone
@@ -55,7 +57,6 @@ def list_themes() -> list[str]:
 
 def format_base_url(mastodon_base_url: str) -> str:
     return mastodon_base_url.strip().rstrip("/")
-
 
 def check_config_pars(pars):
     for acct_list in ["amplify_accounts"]:
@@ -108,6 +109,15 @@ def run(
         access_token=mastodon_token,
         api_base_url=mastodon_base_url,
     )
+
+    # sql = sqlite3.connect('icymibotcache.db')
+    # db = sql.cursor()
+    # db.execute('''CREATE TABLE IF NOT EXISTS myboosts (toot_id text, toot_author_acct text, from_twitter text)''')
+    # db.execute('''CREATE TABLE IF NOT EXISTS toots_seen (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
+    # db.execute('''CREATE TABLE IF NOT EXISTS toots_to_boost (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
+    #db.execute('''CREATE TABLE IF NOT EXISTS entries (feed_entry_id text, toot_id text, rss_feed_url text, mastodon_username text, mastodon_instance text)''')
+    
+    print("Still running with hardcoded filtered accounts and keywords")
     filtered_accounts = set(['EEAS@social.network.europa.eu','EU_UNGeneva@respublicae.eu', 'rmartinnielsen@mastodon.social'])
 
     keywords_mixedcase = ['TPNW', 'nuclear', 'missiles', 'missile', 'nonprolifwp', 'armscontrol', 'nonproliferation', 'autonomousweapons', 'killerrobots', 'SALW', 'ConferenceOnDisarmament', 'chemicalweapons', 'chemicalweapon', 'nuclearweapons', 'disarmament', 'opcw', 'landmines', 'biowarfare', 'biologicalweapons', 'ICBM', 'ICBMs']
@@ -132,13 +142,24 @@ def run(
     
     # It reads in a list of all the posts (including boosts) it has made.
     # go back 5 days
-    myposts, myboosts, myposts_seen = fetch_myposts(24*5, mst, myposts_limit )
-    print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
+    try:
+        myboosts_df = pd.read_csv("icymibot_cache_myboosts.csv")
+    except (pd.errors.EmptyDataError, IOError, OSError):
+        myposts, myboosts, myposts_seen = fetch_myposts(24*5, mst, myposts_limit )
+        print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
+        # toot_id text, toot_author_acct text, from_twitter text)
+        boosts_list = [{'toot_id':post.info['id'],
+                        'acct':post.info['account']['acct'],
+                        'from_twitter':post.from_twitter(),
+                        'created_at':post.info['created_at']} for post in myboosts]
+        myboosts_df = pd.DataFrame(boosts_list)
+        myboosts_df.to_csv("icymibot_cache_myboosts.csv")
 
-    boosted_authors = set([post.info['account']['acct'] for post in myboosts[-author_look_back_len:] ])
+    boosted_authors = set(myboosts_df[-author_look_back_len:]['acct'])
 
-    twitter_boosts = [post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() > 0.0]
-    non_twitter_boosts = [ post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() == 0.0]
+    twitter_boosts = [myboosts_df[-twitter_look_back_len:]['from_twitter'] > 0.0]
+    non_twitter_boosts = [myboosts_df[-twitter_look_back_len:]['from_twitter'] == 0.0]
+    #non_twitter_boosts = [ post for post in myboosts[-twitter_look_back_len:] if post.from_twitter() == 0.0]
 
 # It looks at how many reblogs and favorites each of the remaining posts have gotten and calculates a score based on their geometric mean. Note: This is only a subset of the true counts as it primarily knows what its home server (esq.social) knows. Consequently, esq.social's interactions with a post hold a special sway. This is why I decided to base a legal content aggregator on a legal-focused server. If we assume its users will more frequently interact with the target content, it ups the chances that the counts will be current. Additionally, the bot also knows the counts as they appear on mastodon.social for folks followed by @colarusso since it shares an infrastructure with @colarusso_alo. So, four communities strongly influence what the bot sees: (1) the folks it follows; (2) the folks who interact with their posts; (3) the members of esq.social who can give more insight into the actions of 2; and (4) the folks followed by Colarusso mediated by colarusso_algo who can give more insight into the actions of 2.
 # It divides the score above by a number that increases with the author's follower count. That is, as the author's follower count goes up, their score goes down. As of this writing, this denominator is a sigmoid with values between 0.5 and 1, maxing out at a few thousand followers. However, I'm always fiddling with this.
