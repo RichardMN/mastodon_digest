@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from scipy import stats
 from statistics import median_high, median_low
 
-from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts
+from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts, build_boost_file
 from scorers import get_scorers, ConfiguredScorer, KeywordScorer
 from thresholds import get_threshold_from_name, get_thresholds
 
@@ -40,7 +40,8 @@ def render_digest(context: dict, output_dir: Path,  mastodon_client: Mastodon, o
     elif (output_type=="bot"):
         # print("Would boost the following...")
         # print(context)
-        reboost_toots(mastodon_client, context)
+        #reboost_toots(mastodon_client, context)
+        build_boost_file(mastodon_client, context)
 
 
 
@@ -140,20 +141,23 @@ def run(
                           if (datetime.now(timezone.utc) - post.info["created_at"]) 
                             < timedelta(minutes = minutes_look_back)]
     
+    myposts, myboosts, myposts_seen = fetch_myposts(24*5, mst, myposts_limit )
+    print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
+    # toot_id text, toot_author_acct text, from_twitter text)
+    boosts_list = [{'toot_id':post.info['id'],
+                    'acct':post.info['account']['acct'],
+                    'from_twitter':post.from_twitter(),
+                    'created_at':post.info['created_at'],
+                    'link_url':post.link_urls()[0] if post.link_urls() else ''} for post in myboosts]
+    myboosts_df = pd.DataFrame(boosts_list)
+        
     # It reads in a list of all the posts (including boosts) it has made.
     # go back 5 days
     try:
-        myboosts_df = pd.read_csv("icymibot_cache_myboosts.csv")
+        myoldboosts_df = pd.read_csv("icymibot_cache_myboosts.csv")
+        myboosts_df = myoldboosts_df.combine_first( myboosts_df)
     except (pd.errors.EmptyDataError, IOError, OSError):
-        myposts, myboosts, myposts_seen = fetch_myposts(24*5, mst, myposts_limit )
-        print(f"In my timeline, seen {myposts_seen} posts, returned {len(myposts)} posts and {len(myboosts)} boosts.")
-        # toot_id text, toot_author_acct text, from_twitter text)
-        boosts_list = [{'toot_id':post.info['id'],
-                        'acct':post.info['account']['acct'],
-                        'from_twitter':post.from_twitter(),
-                        'created_at':post.info['created_at']} for post in myboosts]
-        myboosts_df = pd.DataFrame(boosts_list)
-        myboosts_df.to_csv("icymibot_cache_myboosts.csv")
+        myboosts_df.to_csv("icymibot_cache_myboosts.csv", index=False)
 
     boosted_authors = set(myboosts_df[-author_look_back_len:]['acct'])
 
@@ -224,6 +228,20 @@ def run(
     threshold_boosts = sorted(
         sorted_boosts_drop_zeroes, key=lambda post: post.get_score(scorer), reverse=True
     )
+    bucket_candidates = pd.DataFrame(
+        {'toot_id':post.info['id'],
+                    'acct':post.info['account']['acct'],
+                    'from_twitter':post.from_twitter(),
+                    'created_at':post.info['created_at'],
+                    'score':post.get_score(scorer),
+                    'link_url':post.link_urls()[0] if post.link_urls() else ''} for post in threshold_posts
+    )
+    bucket_candidates_unique = bucket_candidates.groupby('acct').first()
+    bucket_candidates_cream = bucket_candidates_unique[:3]
+    # Now need to ...
+    #  - remove duplicate links: a toot which refers to a link which the same
+    #    account has already linked to doesn't need to be boosted again
+    #  - maybe slow down the twitter boosting?
 
     # 4. Build the digest
     if len(threshold_posts) == 0 and len(threshold_boosts) == 0:
@@ -247,6 +265,12 @@ def run(
             output_type=output_type,
             theme=theme,
         )
+        try:
+            oldboosts_df = pd.read_csv("icymibot_cache_to_boost.csv")
+            to_boost_df =oldboosts_df.combine_first(bucket_candidates_cream)
+        except (pd.errors.EmptyDataError, IOError, OSError):
+            print("No existing cache of items to boost")
+        to_boost_df.to_csv("icymibot_cache_to_boost.csv", index=False)
 
 
 if __name__ == "__main__":
