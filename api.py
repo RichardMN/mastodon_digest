@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 from models import ScoredPost
 
 if TYPE_CHECKING:
@@ -170,4 +172,28 @@ def reboost_toots(mastodon_client: Mastodon, context: dict) -> None:
         status = mastodon_client.status(scored_post.info['id'])
         #print (status.content)
         print (f"WOULD Calling mastodon_client.reblog({scored_post.info['id']}, visibility='unlisted')")
+#        mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')
+
+def build_boost_file(mastodon_client: Mastodon, context: dict) -> None:
+    """Writes a file of toots to be boosted, as provided in the context"""
+    # This could eventually also issue a summary toot
+    to_boost_df = pd.DataFrame(
+        [{'toot_id':post.info['id'],
+            'acct':post.info['account']['acct'],
+            'from_twitter':post.from_twitter(),
+            'created_at':post.info['created_at'],
+            'link_url':post.link_urls()[0] if post.link_urls() else ''} for post in context['posts']]
+    )
+    try:
+        oldboosts_df = pd.read_csv("icymibot_cache_to_boost.csv")
+        to_boost_df =oldboosts_df.combine_first(to_boost_df)
+    except (pd.errors.EmptyDataError, IOError, OSError):
+        print("No existing cache of items to boost")
+    
+    to_boost_df.to_csv("icymibot_cache_to_boost.csv", index=False)
+    # for scored_post in context['posts']:
+    #     print (f"url: {scored_post.url}")
+    #     status = mastodon_client.status(scored_post.info['id'])
+    #     #print (status.content)
+    #     print (f"WOULD Calling mastodon_client.reblog({scored_post.info['id']}, visibility='unlisted')")
 #        mastodon_client.status_reblog(scored_post.info['id'], visibility='unlisted')

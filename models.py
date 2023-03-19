@@ -27,12 +27,19 @@ class ScoredPost:
         # toot_html = self.info.get("content")
         # toot_bs = BeautifulSoup(toot_html, "html.parser")
         # toot_text = toot_bs.get_text().lower()
-        toot_text = self.content_text().lower()
-        #print(f"testing {toot_text} for matches")
-        words_in_toot = set(re.findall(r"(\w+.)", toot_text))
-        for word in words_in_toot:
-            if word in ['nitter', 'n.respublicae.eu', 'twitter.com', 'RT']:
-                response += 0.6
+        toot_html = self.info.get("content")
+        toot_bs = BeautifulSoup(toot_html, "html.parser")
+        #for tag in toot_bs.find_all('a'):
+        for atag in toot_bs.find_all('a', attrs={'class':''}):
+            for stub in ['.*nitter', '.*/n.respublicae.eu', '.*/t.co']:
+                if re.match(stub, atag['href']):
+                    response += 0.4
+        # toot_text = self.content_text().lower()
+        # #print(f"testing {toot_text} for matches")
+        # words_in_toot = set(re.findall(r"(\w+.)", toot_text))
+        # for word in words_in_toot:
+        #     if word in ['nitter', 'n.respublicae.eu', 'twitter.com', 'RT']:
+        #         response += 0.6
         response = min(response, 1.0)
         return response
     
@@ -54,4 +61,11 @@ class ScoredPost:
         toot_html = self.info.get("content")
         toot_bs = BeautifulSoup(toot_html, "html.parser")
         return toot_bs.get_text()
+    
+    def link_urls(self) -> list[str]:
+        toot_html = self.info.get("content")
+        toot_bs = BeautifulSoup(toot_html, "html.parser")
+        #for tag in toot_bs.find_all('a'):
+        return [atag['href'] for atag in toot_bs.find_all('a', attrs={'class':''})]
+
 
