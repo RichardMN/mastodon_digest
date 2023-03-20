@@ -191,6 +191,19 @@ def build_boost_file(mastodon_client: Mastodon, context: dict) -> None:
         print("No existing cache of items to boost")
     
     to_boost_df.to_csv("icymibot_cache_to_boost.csv", index=False)
+
+def boost_toot_from_file(mastodon_client: Mastodon, bucket_filename: str) -> None:
+    try:
+        to_boost_df = pd.read_csv(bucket_filename)
+    except (pd.errors.EmptyDataError, IOError, OSError):
+        print("No existing cache of items to boost")
+        return
+    print(f"Would boost {to_boost_df.loc[0]['toot_id']} (from {to_boost_df.loc[0]['acct']})")
+    mastodon_client.status_reblog(to_boost_df.loc[0]['toot_id'], visibility="unlisted")
+    to_boost_df = to_boost_df[1:]
+    to_boost_df.to_csv(bucket_filename, index=False)
+    
+
     # for scored_post in context['posts']:
     #     print (f"url: {scored_post.url}")
     #     status = mastodon_client.status(scored_post.info['id'])

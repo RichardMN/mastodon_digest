@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from scipy import stats
 from statistics import median_high, median_low
 
-from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts, build_boost_file
+from api import fetch_posts_and_boosts, reboost_toots, fetch_myposts, build_boost_file, boost_toot_from_file
 from scorers import get_scorers, ConfiguredScorer, KeywordScorer
 from thresholds import get_threshold_from_name, get_thresholds
 
@@ -37,11 +37,11 @@ def render_digest(context: dict, output_dir: Path,  mastodon_client: Mastodon, o
         output_html = template.render(context)
         output_file_path = output_dir / "index.html"
         output_file_path.write_text(output_html)
-    elif (output_type=="bot"):
+    #elif (output_type=="bot"):
         # print("Would boost the following...")
         # print(context)
         #reboost_toots(mastodon_client, context)
-        build_boost_file(mastodon_client, context)
+        #build_boost_file(mastodon_client, context)
 
 
 
@@ -82,6 +82,7 @@ def add_defaults_from_config(arg_parser : ArgumentParser, config_file : Path) ->
 
 def run(
     hours: int,
+    boost: bool,
     scorer: Scorer,
     threshold: Threshold,
     mastodon_token: str,
@@ -91,6 +92,23 @@ def run(
     output_type: str,
     theme: str,
 ) -> None:
+
+    bucket_filename = "icymibot_cache_to_boost.csv"
+    mst = Mastodon(
+        user_agent="mastodon_digest_refactor",
+        access_token=mastodon_token,
+        api_base_url=mastodon_base_url,
+    )
+
+    if (boost):
+        boost_toot_from_file(mst, bucket_filename)
+        return
+    # sql = sqlite3.connect('icymibotcache.db')
+    # db = sql.cursor()
+    # db.execute('''CREATE TABLE IF NOT EXISTS myboosts (toot_id text, toot_author_acct text, from_twitter text)''')
+    # db.execute('''CREATE TABLE IF NOT EXISTS toots_seen (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
+    # db.execute('''CREATE TABLE IF NOT EXISTS toots_to_boost (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
+    #db.execute('''CREATE TABLE IF NOT EXISTS entries (feed_entry_id text, toot_id text, rss_feed_url text, mastodon_username text, mastodon_instance text)''')
 
     timeline_limit = 200
     myposts_limit = 1000
@@ -105,19 +123,6 @@ def run(
 
     print(f"Building digest from the past {hours} hours, maximum {timeline_limit} requests...")
 
-    mst = Mastodon(
-        user_agent="mastodon_digest_refactor",
-        access_token=mastodon_token,
-        api_base_url=mastodon_base_url,
-    )
-
-    # sql = sqlite3.connect('icymibotcache.db')
-    # db = sql.cursor()
-    # db.execute('''CREATE TABLE IF NOT EXISTS myboosts (toot_id text, toot_author_acct text, from_twitter text)''')
-    # db.execute('''CREATE TABLE IF NOT EXISTS toots_seen (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
-    # db.execute('''CREATE TABLE IF NOT EXISTS toots_to_boost (toot_id text, toot_author_acct text, from_twitter text, eval_score real, toot_creation text)''')
-    #db.execute('''CREATE TABLE IF NOT EXISTS entries (feed_entry_id text, toot_id text, rss_feed_url text, mastodon_username text, mastodon_instance text)''')
-    
     print("Still running with hardcoded filtered accounts and keywords")
     filtered_accounts = set(['EEAS@social.network.europa.eu','EU_UNGeneva@respublicae.eu', 'rmartinnielsen@mastodon.social'])
 
@@ -236,8 +241,11 @@ def run(
                     'score':post.get_score(scorer),
                     'link_url':post.link_urls()[0] if post.link_urls() else ''} for post in threshold_posts
     )
-    bucket_candidates_unique = bucket_candidates.groupby('acct').first()
-    bucket_candidates_cream = bucket_candidates_unique[:3]
+    threshold_score = bucket_candidates['score'].quantile(0.75, interpolation='lower')
+    #bucket_candidates_unique = bucket_candidates.groupby('acct').first()
+    bucket_candidates_unique = bucket_candidates.loc[bucket_candidates.groupby('acct')['score'].idxmax()]
+    bucket_candidates_cream = bucket_candidates_unique[bucket_candidates_unique['score'] >= threshold_score][:3]
+
     # Now need to ...
     #  - remove duplicate links: a toot which refers to a link which the same
     #    account has already linked to doesn't need to be boosted again
@@ -266,11 +274,12 @@ def run(
             theme=theme,
         )
         try:
-            oldboosts_df = pd.read_csv("icymibot_cache_to_boost.csv")
-            to_boost_df =oldboosts_df.combine_first(bucket_candidates_cream)
+            oldboosts_df = pd.read_csv(bucket_filename)
+            to_boost_df =oldboosts_df.concat(bucket_candidates_cream)
         except (pd.errors.EmptyDataError, IOError, OSError):
             print("No existing cache of items to boost")
-        to_boost_df.to_csv("icymibot_cache_to_boost.csv", index=False)
+            to_boost_df = bucket_candidates_cream
+        to_boost_df.to_csv(bucket_filename, index=False)
 
 
 if __name__ == "__main__":
@@ -280,6 +289,14 @@ if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser(
         prog="mastodon_digest",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    arg_parser.add_argument(
+        "-b", "--boost",  # for "boost"
+        dest="boost",
+        help="Boost a toot from the bucketfile",
+        type=bool,
+        default=False,
+        required=False,
     )
     arg_parser.add_argument(
         "-f",  # for "feed" since t-for-timeline is taken
@@ -395,6 +412,7 @@ if __name__ == "__main__":
         
     run(
         args.hours,
+        args.boost,
         scorer,
         get_threshold_from_name(args.threshold),
         mastodon_token,
