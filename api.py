@@ -198,6 +198,9 @@ def boost_toot_from_file(mastodon_client: Mastodon, bucket_filename: str) -> Non
     except (pd.errors.EmptyDataError, IOError, OSError):
         print("No existing cache of items to boost")
         return
+    if len(to_boost_df)==0:
+        print("No additional toots to boost")
+        return
     print(f"Would boost {to_boost_df.loc[0]['toot_id']} (from {to_boost_df.loc[0]['acct']})")
     mastodon_client.status_reblog(to_boost_df.loc[0]['toot_id'], visibility="unlisted")
     to_boost_df = to_boost_df[1:]

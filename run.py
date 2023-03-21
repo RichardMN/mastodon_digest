@@ -160,9 +160,10 @@ def run(
     # go back 5 days
     try:
         myoldboosts_df = pd.read_csv("icymibot_cache_myboosts.csv")
-        myboosts_df = myoldboosts_df.combine_first( myboosts_df)
+        myboosts_df = pd.concat( [myoldboosts_df, myboosts_df] )
     except (pd.errors.EmptyDataError, IOError, OSError):
-        myboosts_df.to_csv("icymibot_cache_myboosts.csv", index=False)
+        print("No existing list of past boosts")
+    myboosts_df.to_csv("icymibot_cache_myboosts.csv", index=False)
 
     boosted_authors = set(myboosts_df[-author_look_back_len:]['acct'])
 
@@ -275,7 +276,7 @@ def run(
         )
         try:
             oldboosts_df = pd.read_csv(bucket_filename)
-            to_boost_df =oldboosts_df.concat(bucket_candidates_cream)
+            to_boost_df =pd.concat([oldboosts_df, bucket_candidates_cream])
         except (pd.errors.EmptyDataError, IOError, OSError):
             print("No existing cache of items to boost")
             to_boost_df = bucket_candidates_cream
@@ -387,7 +388,7 @@ if __name__ == "__main__":
     dotenv.load_dotenv(override=False)
 
     mastodon_token = os.getenv("MASTODON_TOKEN")
-    print("token:", mastodon_token)
+    print("token:", mastodon_token[-4:])
     mastodon_base_url = os.getenv("MASTODON_BASE_URL")
 
     if not mastodon_token:
