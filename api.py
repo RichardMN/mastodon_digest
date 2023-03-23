@@ -192,7 +192,12 @@ def build_boost_file(mastodon_client: Mastodon, context: dict) -> None:
     
     to_boost_df.to_csv("icymibot_cache_to_boost.csv", index=False)
 
-def boost_toot_from_file(mastodon_client: Mastodon, bucket_filename: str) -> None:
+def boost_toot_from_file( mastodon_client: Mastodon,
+                          bucket_filename: str,
+                          boosted_log_filename: str) -> None:
+    """Using the specified Mastodon client, open the CSV specified, remove one line
+    and boost the toot specified in that line. Save the deleted data from the input
+    file to a log."""
     try:
         to_boost_df = pd.read_csv(bucket_filename)
     except (pd.errors.EmptyDataError, IOError, OSError):
@@ -201,10 +206,12 @@ def boost_toot_from_file(mastodon_client: Mastodon, bucket_filename: str) -> Non
     if len(to_boost_df)==0:
         print("No additional toots to boost")
         return
-    print(f"Would boost {to_boost_df.loc[0]['toot_id']} (from {to_boost_df.loc[0]['acct']})")
+    print(f"Boost {to_boost_df.loc[0]['toot_id']} (from {to_boost_df.loc[0]['acct']})")
     mastodon_client.status_reblog(to_boost_df.loc[0]['toot_id'], visibility="unlisted")
+    to_boost_df[0:1].to_csv(boosted_log_filename, mode='a', header=False, index=False)
     to_boost_df = to_boost_df[1:]
     to_boost_df.to_csv(bucket_filename, index=False)
+
     
 
     # for scored_post in context['posts']:

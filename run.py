@@ -71,7 +71,7 @@ def add_defaults_from_config(arg_parser : ArgumentParser, config_file : Path) ->
     if config_file.exists() and config_file.is_file():
         with open(config_file, "r") as f:
             cfg_pars = yaml.safe_load(f)
-        print("Loading config file '%s'"%config_file)
+        #print("Loading config file '%s'"%config_file)
         check_config_pars(cfg_pars)
         arg_parser.set_defaults(**cfg_pars)
 
@@ -94,6 +94,8 @@ def run(
 ) -> None:
 
     bucket_filename = "icymibot_cache_to_boost.csv"
+    boosted_log_filename = "icymibot_boosted_log.csv"
+
     mst = Mastodon(
         user_agent="mastodon_digest_refactor",
         access_token=mastodon_token,
@@ -101,7 +103,7 @@ def run(
     )
 
     if (boost):
-        boost_toot_from_file(mst, bucket_filename)
+        boost_toot_from_file(mst, bucket_filename, boosted_log_filename)
         return
     # sql = sqlite3.connect('icymibotcache.db')
     # db = sql.cursor()
@@ -195,7 +197,7 @@ def run(
     
     print("---posts----")
     for post in sorted_posts:
-        print(post.get_score(scorer), post.content_text())
+        print(f"{post.get_score(scorer)},{post.info['id']},{post.info['account']['acct']},{post.content_text()}")
     if len(sorted_posts):
         print(median_high([post.get_score(scorer) for post in sorted_posts]))
     else:
@@ -388,7 +390,7 @@ if __name__ == "__main__":
     dotenv.load_dotenv(override=False)
 
     mastodon_token = os.getenv("MASTODON_TOKEN")
-    print("token:", mastodon_token[-4:])
+    print("token: ...", mastodon_token[-6:])
     mastodon_base_url = os.getenv("MASTODON_BASE_URL")
 
     if not mastodon_token:
