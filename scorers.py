@@ -124,7 +124,7 @@ class KeywordScorer(Weight, Scorer):
         return s
     
     def keyword_score(self, scored_post: ScoredPost) -> float:
-        return float(scored_post.count_keywords(self.keywords))*0.1
+        return float(scored_post.count_keywords(self.keywords))*0.05
     
     def weight(self, scored_post: ScoredPost) -> Weight:
         return self.base_scorer.weight(scored_post)

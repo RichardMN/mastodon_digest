@@ -203,13 +203,21 @@ def run(
     else:
         print("No posts")
     
-    sorted_posts_drop_zeroes = sorted(
-        [post for post in filtered_posts if post.get_score(scorer)>0.0],
+    sorted_posts_drop_echoes = sorted(
+        [post for post in filtered_posts if post.info['account']['acct'] not in boosted_authors],
         key = lambda post: post.get_score(scorer), reverse=True
     )
-    if len(sorted_posts_drop_zeroes):
-        post_median_score = median_low([post.get_score(scorer) for post in sorted_posts_drop_zeroes])
-        print(f"Above median (w/o zeroes): {len(sorted_posts_drop_zeroes)} Median w/o zeroes: {post_median_score}" )
+    sorted_posts_drop_zeroes = sorted(
+        [post for post in filtered_posts if post.get_score(scorer)>0.0 ],
+        key = lambda post: post.get_score(scorer), reverse=True
+    )
+    sorted_posts_drop_zeroes_and_echoes = sorted(
+        [post for post in filtered_posts if post.get_score(scorer)>0.0 and post.info['account']['acct'] not in boosted_authors],
+        key = lambda post: post.get_score(scorer), reverse=True
+    )
+    if len(sorted_posts_drop_zeroes_and_echoes):
+        post_median_score = median_low([post.get_score(scorer) for post in sorted_posts_drop_zeroes_and_echoes])
+        print(f"Above median (w/o zeroes or echoes): {len(sorted_posts_drop_zeroes_and_echoes)} Median w/o zeroes: {post_median_score}" )
     else:
         print("No posts")
 
@@ -231,7 +239,7 @@ def run(
         print("No boosts")
     
     threshold_posts = sorted(
-         sorted_posts_drop_zeroes, key=lambda post: post.get_score(scorer), reverse=True
+         sorted_posts_drop_zeroes_and_echoes, key=lambda post: post.get_score(scorer), reverse=True
     )
     threshold_boosts = sorted(
         sorted_boosts_drop_zeroes, key=lambda post: post.get_score(scorer), reverse=True
