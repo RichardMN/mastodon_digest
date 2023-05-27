@@ -89,6 +89,9 @@ usage: mastodon_digest [-h] [-f TIMELINE] [-n {1,2,3,4,5,6,7,8,9,10,11,12,13,14,
 
 options:
   -h, --help            show this help message and exit
+  -c, --config CONFIG_FILE
+                        Defines the configuration file for a user configured
+                        scorer. (default: ./cfg.yaml)
   -f TIMELINE           The timeline to summarize: Expects 'home', 'local' or 'federated', or 'list:id', 'hashtag:tag' (default:
                         home)
   -n {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24}
@@ -113,6 +116,8 @@ make run FLAGS="-n 8 -s ExtendedSimpleWeighted -t lax"
 ```
 
 #### Algorithm Options
+ * `-c` : Configuration file. Refer to `cfg.yaml.example` as template. Parameters can be one of the available per command line interface, that is: `hours` (<-`n`), `timeline` (<-`f`) `scorer` (<-`-s`), `threshold` (<-`-t`), `output_dir` (<-`-o`), `theme` (cli takes precedence). Further parameters:
+    - `amplify_accounts` : Map of weight factors, by which posts of specified accounts are multiplied.
  * `-f` : Timeline feed to source from. **home** is the default.
     - `home` : Your home timeline.
     - `local` : The local timeline for your instance; all the posts from users in an instance. This is more useful on small/medium-sized instances. Consider using a much smaller value for `-n` to limit the number of posts analysed.
@@ -121,10 +126,10 @@ make run FLAGS="-n 8 -s ExtendedSimpleWeighted -t lax"
     - `list:3` : A list timeline. Lists are given numeric IDs (as in their URL, e.g. `https://example.social/lists/2`), which you must use for input here, not the list name.
  * `-n` : Number of hours to look back when building your digest. This can be an integer from 1 to 24. Defaults to **12**. I've found that 12 works well in the morning and 8 works well in the evening.
  * `-s` : Scoring method to use. **SimpleWeighted** is the default.
-    - `Simple` : Each post is scored with a modified [geometric mean](https://en.wikipedia.org/wiki/Geometric_mean) of its number of boosts and its number of favorites.
-    - `SimpleWeighted` : The same as `Simple`, but every score is multiplied by the inverse of the square root of the author's follower count. Therefore, authors with very large audiences will need to meet higher boost and favorite numbers. **This is the default scorer**.
-    - `ExtendedSimple` : Each post is scored with a modified [geometric mean](https://en.wikipedia.org/wiki/Geometric_mean) of its number of boosts, its number of favorites, and its number of replies.
-    - `ExtendedSimpleWeighted` : The same as `ExtendedSimple`, but every score is multiplied by the inverse of the square root of the author's follower count. Therefore, authors with very large audiences will need to meet higher boost, favorite, and reply numbers.
+   - `Simple` : Each post is scored with a modified [geometric mean](https://en.wikipedia.org/wiki/Geometric_mean) of its number of boosts and its number of favorites.
+   - `SimpleWeighted` : The same as `Simple`, but every score is multiplied by the inverse of the square root of the author's follower count. Therefore, authors with very large audiences will need to meet higher boost and favorite numbers. **This is the default scorer**.
+   - `ExtendedSimple` : Each post is scored with a modified [geometric mean](https://en.wikipedia.org/wiki/Geometric_mean) of its number of boosts, its number of favorites, and its number of replies.
+   - `ExtendedSimpleWeighted` : The same as `ExtendedSimple`, but every score is multiplied by the inverse of the square root of the author's follower count. Therefore, authors with very large audiences will need to meet higher boost, favorite, and reply numbers.
 * `-t` : Threshold for scores to include. **normal** is the default
     - `lax` : Posts must achieve a score within the 90th percentile.
     - `normal` : Posts must achieve a score within the 95th percentile. **This is the default threshold**.
@@ -162,6 +167,25 @@ When developing themes, you can run the digest in development mode, which uses t
 ```sh
 make dev FLAGS="--theme my-theme"
 ```
+
+## A workflow for "bot" mode
+
+This code can also be used to run a simple digest bot. With a linked account, it can be used to share the digest which it would prepare as an HTML page by boosting all the toots it would include in the HTML page. The account should be identified as being a bot in its profile, and on an instance where such bot accounts are permitted.
+
+First, create a dedicated account for your bot, and tailor its follows - both accounts and hashtags. Once you are content with what is appearing in the bot's timeline, try running the bot code in digest mode to adjust the digest settings.
+
+It is recommended that you run this manually.
+
+1. Run the bot once in normal html mode (`--output=html`) and review the output (usually in `render/index.html`).
+2. If you are comfortable with boosting everything which appears in the digest you've created, run the bot again, this time with `--output=bot`.
+
+If you see something in the HTML digest which you would prefer not to boost, bookmark it before running the code in bot mode. Bookmarking a toot tells the code that you have interacted with it. When making a digest, the code doesn't want to show you something you've already interacted with (favorited, boosted, or bookmarked). Favoriting and boosting toots are public (and may be what you want to avoid); bookmarking is not public but still tells the code to avoid that toot.
+
+Running the code in bot mode, it will print out the urls of the toots it will boost, but _it will not ask for any confirmation of your wish to boost them_. This is why running it in digest mode and checking the output first is recommended.
+
+Adjust the number of hours to match how frequently you will run the bot, but it can be longer than the interval between runs. This lets the bot look a bit further back and recognise older toots which are getting traction. Because it will not boost something it has already boosted, there shouldn't be duplication (but it doesn't currently screen for toots which link to the same external url).
+
+This code is being used for the [ICYMI (ADN)](https://botsin.space/@icymi_adn) bot.
 
 ## What's missing?
 

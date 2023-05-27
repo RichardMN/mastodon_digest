@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import sys
 from abc import ABC, abstractmethod
 from math import sqrt
 from typing import TYPE_CHECKING
 
 from scipy import stats
+
+from api import get_full_account_name
 
 if TYPE_CHECKING:
     from models import ScoredPost
@@ -101,8 +104,76 @@ class ExtendedSimpleWeightedScorer(InverseFollowerWeight, ExtendedSimpleScorer):
     def score(cls, scored_post: ScoredPost) -> ExtendedSimpleWeightedScorer:
         return super().score(scored_post) * super().weight(scored_post)
 
+class KeywordScorer(Weight, Scorer):
+    @staticmethod
+    def get_additional_scorer_pars() -> set:
+        return {"keywords",}
+
+    @classmethod
+    def check_params(cls, pars):
+        admissible_base_scorers = set(get_scorers()).difference({"Keyword"})
+        if pars["scorer"][7:] not in admissible_base_scorers:
+            sys.exit("Keyword scorer '%s' must be one of %s"%admissible_base_scorers)
+
+    # Override class by instance method (I don't know how to solve this better.)
+    def get_name(self):
+        return "Keyword%s"%(self.base_scorer.get_name())
+
+    def score(self, scored_post: ScoredPost) -> KeywordScorer:
+        s = (self.base_scorer.score(scored_post) + self.keyword_score(scored_post)) * self.weight(scored_post)
+        return s
+    
+    def keyword_score(self, scored_post: ScoredPost) -> float:
+        return float(scored_post.count_keywords(self.keywords))*0.05
+    
+    def weight(self, scored_post: ScoredPost) -> Weight:
+        return self.base_scorer.weight(scored_post)
+    
+    def __init__(self, **pars)->None:
+        KeywordScorer.check_params(pars)
+        #self.default_host = pars["default_host"]
+        self.base_scorer = get_scorers()[pars["scorer"][7:]]
+        self.keywords = set([ word.lower() for word in pars.get("keywords", {})])
+
+
+class ConfiguredScorer(Weight, Scorer):
+    @staticmethod
+    def get_additional_scorer_pars() -> set:
+        # Return a set of parameter names, which modify the behaviour 
+        # of a base scorer and require the use of a configured scorer.
+        # Add new parameters here to trigger the use of the ConfiguredScorer
+        # instead of instanciating a basic scorer directly (see run.py).
+        return {"amplify_accounts",}
+     
+    @classmethod
+    def check_params(cls, pars):
+        admissible_base_scorers = set(get_scorers()).difference({"Configured"})
+        if pars["scorer"] not in admissible_base_scorers:
+            sys.exit("Configure scorer '%s' must be one of %s"%admissible_base_scorers)
+
+    # Override class by instance method (I don't know how to solve this better.)
+    def get_name(self):
+        return "Configured%s"%(self.base_scorer.get_name())
+
+    def score(self, scored_post: ScoredPost) -> ConfiguredScorer:
+        s = self.base_scorer.score(scored_post) * self.weight(scored_post)
+        return s
+    
+    def weight(self, scored_post: ScoredPost) -> Weight:
+        base_weight = self.base_scorer.weight(scored_post)
+        acct = scored_post.info.get("account", {}).get("acct", "")
+        acct = get_full_account_name(acct, self.default_host)
+        w = base_weight * self.amplify_accounts.get(acct, 1.0)
+        return w
+
+    def __init__(self, **pars)->None:
+        ConfiguredScorer.check_params(pars)
+        self.default_host = pars["default_host"]
+        self.base_scorer = get_scorers()[pars["scorer"]]
+        self.amplify_accounts = pars.get("amplify_accounts", {})
+
 
 def get_scorers():
     all_classes = inspect.getmembers(importlib.import_module(__name__), inspect.isclass)
     scorers = [c for c in all_classes if c[1] != Scorer and issubclass(c[1], Scorer)]
-    return {scorer[1].get_name(): scorer[1] for scorer in scorers}
+    return {scorer[1].get_name(): scorer[1] for scorer in scorers if scorer[1] not in [ConfiguredScorer, KeywordScorer]}
