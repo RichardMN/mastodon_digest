@@ -115,7 +115,7 @@ def run(
     timeline_limit = 200
     myposts_limit = 1000
     # how far back to look for authors who we may repeat boost
-    author_look_back_len = 10    
+    author_look_back_len = 5    
     # how far back to look for twitter-originated toots, which would
     # mean we don't boost another twitter-originated toot
     twitter_look_back_len = 20
